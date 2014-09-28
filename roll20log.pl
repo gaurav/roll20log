@@ -20,6 +20,7 @@ binmode(STDOUT, ":encoding(utf-8)");
 my $help;
 my $man;
 
+my $flag_debug = 0;
 my $flag_hide_metadata = 0;
 my $flag_script_mode = 0;
 
@@ -28,7 +29,8 @@ GetOptions(
     man => \$man,
 
     'hide-metadata' => \$flag_hide_metadata,
-    'script-mode' => \$flag_script_mode
+    'script-mode' => \$flag_script_mode,
+    'debug' => \$flag_debug
 ) or pod2usage(2);
 pod2usage(1) if $help;
 pod2usage(-exitval => 0, -verbose => 2) if $man;
@@ -92,16 +94,17 @@ foreach my $message (@all_messages) {
     my $metadata = "";
 
     my $new_player = $message->{'who'};
+    my $new_player_started = 0;
     if($flag_script_mode) {
         if(not defined $current_player or $current_player ne $new_player) {
             say "" if defined $current_player;
             say uc($new_player);
-            $message->{'who'} = " ";
+            $message->{'who'} = "";
         } else {
-            $message->{'who'} = " ";
+            $message->{'who'} = "";
         }
     } else {
-        $message->{'who'} = "<" . $message->{'who'} . ">";
+        $message->{'who'} = $message->{'who'} . ": ";
     }
     $current_player = $new_player;
 
@@ -145,38 +148,38 @@ foreach my $message (@all_messages) {
         $roll_summary .= " = ";
         $roll_summary .= $roll_content->{'total'};
 
-        say sprintf("%s%s (rolls %s)",
+        say sprintf("%s%s(rolls %s)",
             $message->{'who'},
             $metadata,
             $roll_summary
         );
     
     } elsif($type eq 'general') {
-        say sprintf("%s%s %s",
+        say sprintf("%s%s%s",
             $message->{'who'},
             $metadata,
             $message->{'content'}
         );
 
     } elsif($type eq 'emote') {
-        say sprintf("%s%s (%s)",
+        say sprintf("%s%s(%s)",
             $message->{'who'},
             $metadata,
             $message->{'content'}
         )
 
     } elsif($type eq 'desc') {
-        say sprintf("%s%s %s",
+        say sprintf("%s%s%s",
             $message->{'who'},
             $metadata,
             $message->{'content'}
         );
 
     } elsif($type eq 'whisper') {
-        say sprintf("%s%s (to %s: %s)",
+        say sprintf("%s%s(to %s: %s)",
             $message->{'who'},
             $metadata,
-            $message->{'target_name'},
+            uc $message->{'target_name'},
             $message->{'content'}
         );
 
@@ -186,4 +189,6 @@ foreach my $message (@all_messages) {
     } else {
         die "Unknown type '$type': " . Dumper($message);
     }
+
+    say "DEBUG: " . Dumper($message) if $flag_debug;
 }
