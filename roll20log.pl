@@ -23,6 +23,7 @@ my $man;
 my $flag_debug = 0;
 my $flag_hide_metadata = 0;
 my $flag_script_mode = 0;
+my $fn_sections;
 
 GetOptions(
     'help|?' => \$help, 
@@ -30,10 +31,39 @@ GetOptions(
 
     'hide-metadata' => \$flag_hide_metadata,
     'script-mode' => \$flag_script_mode,
-    'debug' => \$flag_debug
+    'debug' => \$flag_debug,
+
+    'sections=s' => \$fn_sections
 ) or pod2usage(2);
 pod2usage(1) if $help;
 pod2usage(-exitval => 0, -verbose => 2) if $man;
+
+# Load sections file, if any.
+my %sections;
+
+if(defined $fn_sections) {
+    open(my $fh_sections, "<:encoding(utf-8)", $fn_sections) 
+        or die "Could not open sections file '$fn_sections': $!";
+
+    while(<$fh_sections>) {
+        chomp;
+
+        if(/^([\w\-]+):\s*(.*)\s*$/) {
+            die "Duplicate section name: '$1'" if exists $sections{$1};
+
+            $sections{$1} = $2;
+        } elsif(/^\s*$/) {
+            # Ignore blank lines.
+        } elsif(/^\s*#.*$/) {
+            # Ignore comment lines.
+        } else {
+            warn "Unable to parse line in sections file, ignoring: '$_'";
+        }
+    }
+    
+    close($fh_sections);
+}
+
 
 # Assume any files still on the path are .html files that need parsing.
 my @all_messages;
@@ -92,6 +122,11 @@ my $current_player;
 foreach my $message (@all_messages) {
     my $type = $message->{'type'};
     my $metadata = "";
+
+    if(exists $sections{$message->{'_id'}}) {
+        say "";
+        say "== " . $sections{$message->{'_id'}} . " ==";
+    }
 
     my $new_player = $message->{'who'};
     my $new_player_started = 0;
