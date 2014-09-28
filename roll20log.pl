@@ -13,17 +13,22 @@ use Data::Dumper;
 use MIME::Base64;
 use JSON;
 
+# Prepare STDOUT for extreme UTF-8-ness.
+binmode(STDOUT, ":encoding(utf-8)");
+
 # Process command-line arguments so we know what we're doing.
 my $help;
 my $man;
 
 my $flag_hide_metadata = 0;
+my $flag_script_mode = 0;
 
 GetOptions(
     'help|?' => \$help, 
     man => \$man,
 
-    'hide-metadata' => \$flag_hide_metadata
+    'hide-metadata' => \$flag_hide_metadata,
+    'script-mode' => \$flag_script_mode
 ) or pod2usage(2);
 pod2usage(1) if $help;
 pod2usage(-exitval => 0, -verbose => 2) if $man;
@@ -81,27 +86,30 @@ say STDERR scalar(@all_messages) . " messages to process.";
 
 say STDERR "Writing all messages to STDOUT.";
 
+my $current_player;
 foreach my $message (@all_messages) {
     my $type = $message->{'type'};
     my $metadata = "";
+
+    my $new_player = $message->{'who'};
+    if($flag_script_mode) {
+        if(not defined $current_player or $current_player ne $new_player) {
+            say "" if defined $current_player;
+            say uc($new_player);
+            $message->{'who'} = " ";
+        } else {
+            $message->{'who'} = " ";
+        }
+    } else {
+        $message->{'who'} = "<" . $message->{'who'} . ">";
+    }
+    $current_player = $new_player;
 
     $metadata = " [" . $message->{'_id'} . " #" . 
         $message->{'_chunk_id'} . "]"
         unless $flag_hide_metadata;
 
-    if($type eq 'general') {
-        say sprintf("%s%s: %s",
-            $message->{'who'},
-            $metadata,
-            $message->{'content'}
-        );
-    } elsif($type eq 'emote') {
-        say sprintf("%s%s %s",
-            $metadata,
-            $message->{'who'},
-            $message->{'content'}
-        );
-    } elsif($type eq 'rollresult' || $type eq 'gmrollresult') {
+    if($type eq 'rollresult' || $type eq 'gmrollresult') {
         my @roll_details;
         my $roll_content = JSON::decode_json($message->{'content'});
 
@@ -118,7 +126,7 @@ foreach my $message (@all_messages) {
                     push @roll_details, $roll->{'text'};
                 }
                 when('R') {
-                    push @roll_details, sprintf("%dd%d [%d]",
+                    push @roll_details, sprintf("%dd%d [%s]",
                         $roll->{'dice'},
                         $roll->{'sides'},
                         join(', ', map { $_->{'v'} } @{$roll->{'results'}})
@@ -137,12 +145,26 @@ foreach my $message (@all_messages) {
         $roll_summary .= " = ";
         $roll_summary .= $roll_content->{'total'};
 
-        say sprintf("%s%s rolls %s",
+        say sprintf("%s%s (rolls %s)",
             $message->{'who'},
             $metadata,
             $roll_summary
         );
     
+    } elsif($type eq 'general') {
+        say sprintf("%s%s %s",
+            $message->{'who'},
+            $metadata,
+            $message->{'content'}
+        );
+
+    } elsif($type eq 'emote') {
+        say sprintf("%s%s (%s)",
+            $message->{'who'},
+            $metadata,
+            $message->{'content'}
+        )
+
     } elsif($type eq 'desc') {
         say sprintf("%s%s %s",
             $message->{'who'},
@@ -151,10 +173,10 @@ foreach my $message (@all_messages) {
         );
 
     } elsif($type eq 'whisper') {
-        say sprintf("%s whispers to %s%s: %s",
+        say sprintf("%s%s (to %s: %s)",
             $message->{'who'},
-            $message->{'target_name'},
             $metadata,
+            $message->{'target_name'},
             $message->{'content'}
         );
 
